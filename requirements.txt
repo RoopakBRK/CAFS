@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+python-multipart
+pydantic
+requests
+pytesseract
+Pillow
+pdf2image
+qrcode
+ollama
+opencv-python
+numpy
