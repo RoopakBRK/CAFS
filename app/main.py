@@ -70,13 +70,13 @@ async def verify_certificate(file: UploadFile = File(...)):
         forensics_data = await run_in_threadpool(forensics_agent.analyze, image_bytes)
         
         # --- STAGE 2: EXTRACTION (OCR) ---
-        # Extraction is CPU-bound (OCR), so we run it in a threadpool
-        extraction_result = await run_in_threadpool(extraction_agent.extract, image_bytes)
+        extraction_data = await run_in_threadpool(extraction_agent.extract, image_bytes)
+
+        # Convert dict to ExtractionResult object
+        extraction_result = ExtractionResult(**extraction_data)
 
         # --- STAGE 3: VERIFICATION (URL Check) ---
         verification_result = await verification_agent.verify(extraction_result)
-        # No need to wrap in run_in_threadpool
-        # verification_result is already a VerificationResult object
 
         # --- STAGE 4: FINAL VERDICT LOGIC ---
         final_verdict = "UNVERIFIED"

@@ -18,7 +18,7 @@ logger.setLevel(config.LOG_LEVEL)
 _verification_agent: Optional[VerificationAgent] = None
 
 
-def get_verification_agent(use_playwright: bool = False) -> VerificationAgent:
+def get_verification_agent(use_playwright: bool = True) -> VerificationAgent:
     """
     Get or create the verification agent singleton
     
