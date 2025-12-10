@@ -1,7 +1,7 @@
 import asyncio
 import sys
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
 import logging
 
@@ -60,25 +60,14 @@ async def test_extraction_verification():
         mock_get.status_code = 200
         mock_get.text = "John Doe has completed..."
         
-        # Setup async context manager mock
-        mock_client_instance = MagicMock()
-        
-        # Create a future for the response
-        future = asyncio.Future()
-        future.set_result(mock_get)
-        mock_client_instance.get.return_value = future
-        
-        mock_client_instance.__aenter__.return_value = future_client = asyncio.Future()
-        future_client.set_result(mock_client_instance)
-        mock_client_instance.__aexit__.return_value = future_exit = asyncio.Future()
-        future_exit.set_result(None)
+        # Setup AsyncMock
+        mock_client_instance = AsyncMock()
+        mock_client_instance.get.return_value = mock_get
+        mock_client_instance.__aenter__.return_value = mock_client_instance
+        mock_client_instance.__aexit__.return_value = None
         
         mock_client.return_value = mock_client_instance
         
-        print(f"   DEBUG: mock_client_instance: {mock_client_instance}")
-        print(f"   DEBUG: mock_client_instance.get: {mock_client_instance.get}")
-        print(f"   DEBUG: mock_client_instance.get return value: {mock_client_instance.get.return_value}")
-
         verification_result = await verification_agent.verify(result)
         
         print(f"   Verified: {verification_result.is_verified}")
