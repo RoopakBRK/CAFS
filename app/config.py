@@ -1,7 +1,14 @@
 import os
 from typing import Optional
 
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 class Config:
+
+    CSV_PATH = os.path.join(BASE_DIR, "data/onlinelist.csv")
+    LOG_LEVEL = "INFO"
+
     """
     Configuration management for the multiagent forgery detection system.
     """

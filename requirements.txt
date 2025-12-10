@@ -10,4 +10,12 @@ qrcode
 ollama
 opencv-python
 numpy
+<<<<<<< Updated upstream
 httpx
+=======
+mistral
+httpx 
+beautifulsoup4 
+rapidfuzz 
+playwright
+>>>>>>> Stashed changes

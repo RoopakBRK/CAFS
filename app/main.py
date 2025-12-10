@@ -18,15 +18,15 @@ from app.schemas import (
 
 # Import Agents (Using the correct Class Names)
 from app.agents.forensics import ForensicsAgent
-from app.agents.extraction import ExtractionAgent
-from app.agents.verification import VerificationAgent
+from app.agents.ext import ExtractionAgent
+from app.agents.verification import get_verification_agent
 
 app = FastAPI(title="Multi-Agent Certificate Verifier")
 
 # Initialize Agents
 forensics_agent = ForensicsAgent()
-extraction_agent = ExtractionAgent()
-verification_agent = VerificationAgent()
+extraction_agent = ExtractionAgent(api_key="nJpjawyHlBoqUrTBSxtOE2oA2KytRL2Y")
+verification_agent = get_verification_agent() 
 
 @app.post("/verify", response_model=CertificateAnalysisResponse)
 async def verify_certificate(file: UploadFile = File(...)):
@@ -74,8 +74,9 @@ async def verify_certificate(file: UploadFile = File(...)):
         extraction_result = await run_in_threadpool(extraction_agent.extract, image_bytes)
 
         # --- STAGE 3: VERIFICATION (URL Check) ---
-        # Verification is I/O-bound (HTTP requests), so we await it directly (it's now async)
         verification_result = await verification_agent.verify(extraction_result)
+        # No need to wrap in run_in_threadpool
+        # verification_result is already a VerificationResult object
 
         # --- STAGE 4: FINAL VERDICT LOGIC ---
         final_verdict = "UNVERIFIED"

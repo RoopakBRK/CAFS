@@ -1,159 +1,143 @@
-import httpx
-import csv
+"""
+verification.py
+Service layer or API endpoint for certificate verification
+"""
+
 import logging
-from urllib.parse import urlparse
-from app.config import config
+from typing import Optional
+from fastapi import HTTPException
+
+from app.agents.verificationagent import VerificationAgent
 from app.schemas import ExtractionResult, VerificationResult
+from app.config import config
 
 logger = logging.getLogger(__name__)
 logger.setLevel(config.LOG_LEVEL)
 
-class VerificationAgent:
+# Global agent instance (initialized once)
+_verification_agent: Optional[VerificationAgent] = None
+
+
+def get_verification_agent(use_playwright: bool = False) -> VerificationAgent:
+    """
+    Get or create the verification agent singleton
     
-    def __init__(self):
-        # Load data: We need both a map (for construction) and a list (for validation)
-        self.org_map, self.trusted_prefixes = self._load_trusted_sources(config.CSV_PATH)
-
-    def _load_trusted_sources(self, csv_path):
-        """
-        Reads CSV to build:
-        1. org_map: {'Coursera': 'https://coursera.org/verify/', ...} for URL construction.
-        2. trusted_prefixes: A list of all valid verification URLs for security checking.
-        """
-        org_mapping = {}
-        prefixes = []
+    Args:
+        use_playwright: Whether to enable Playwright for JS-heavy pages
         
-        try:
-            with open(csv_path, mode='r', encoding='utf-8-sig') as file:
-                reader = csv.DictReader(file)
-                
-                # --- DEBUG: Verify CSV headers ---
-                # print(f"CSV Headers found: {reader.fieldnames}") 
-                
-                for row in reader:
-                    # Get relevant columns
-                    org_name = row.get("Organization Name", "").strip()
-                    verify_url = row.get("Verification URL", "").strip()
-                    
-                    if verify_url:
-                        # Add to list of trusted URLs
-                        prefixes.append(verify_url)
-                        
-                        # Add to lookup map if Org Name exists
-                        if org_name:
-                            org_mapping[org_name.lower()] = verify_url
-                            
-            # Add manual fallbacks
-            prefixes.append("https://ude.my/")
-            
-            # --- DEBUG: Confirm load status ---
-            print(f"Loaded {len(prefixes)} trusted sources and {len(org_mapping)} organization maps.")
-            
-            return org_mapping, prefixes
-            
-        except FileNotFoundError:
-            print(f"Error: {csv_path} was not found. Verification capabilities will be limited.")
-            return {}, []
-        except Exception as e:
-            print(f"Error reading CSV: {e}")
-            return {}, []
+    Returns:
+        VerificationAgent instance
+    """
+    global _verification_agent
+    
+    if _verification_agent is None:
+        logger.info("Initializing verification agent...")
+        _verification_agent = VerificationAgent(
+            csv_path=config.CSV_PATH,
+            use_playwright=use_playwright
+        )
+    
+    return _verification_agent
 
-    async def verify(self, extraction_data: ExtractionResult) -> VerificationResult:
-        # 1. Unpack Data
-        url = extraction_data.issuer_url
-        org_name = extraction_data.issuer_org
-        cert_id = extraction_data.certificate_id
-        candidate_name = extraction_data.candidate_name
+
+async def verify_certificate(extraction_data: ExtractionResult) -> VerificationResult:
+    """
+    Main service function to verify a certificate
+    
+    Args:
+        extraction_data: Extracted certificate data from OCR/Mistral
         
-        # 2. Smart URL Construction (The Missing Link Fix)
-        # If we lack a URL but have the Org and ID, we build it here.
-        if not url:
-            if org_name and cert_id:
-                logger.info(f"Attempting to reconstruct URL for {org_name}...")
-                
-                # Look up the base URL from our CSV map
-                base_url = self.org_map.get(org_name.lower())
-                
-                if base_url:
-                    # Ensure base ends with slash before adding ID
-                    if not base_url.endswith('/'):
-                        base_url += '/'
-                    url = f"{base_url}{cert_id}"
-                    logger.info(f"Reconstructed URL: {url}")
-                else:
-                    return VerificationResult(
-                        is_verified=False, 
-                        message=f"Organization '{org_name}' not found in trusted list.", 
-                        trusted_domain=False
-                    )
-            else:
-                return VerificationResult(
-                    is_verified=False, 
-                    message="Missing URL and insufficient data (Org/ID) to reconstruct it.", 
-                    trusted_domain=False
-                )
-
-        # 3. URL Normalization
-        if not url.startswith(('http://', 'https://')):
-            url = 'https://' + url
-
-        # 4. Domain Security Check
-        # Does this URL start with one of our trusted prefixes?
-        is_trusted = False
-        url_clean = url.replace("www.", "").lower()
+    Returns:
+        VerificationResult with verification status
         
-        for prefix in self.trusted_prefixes:
-            prefix_clean = prefix.replace("www.", "").lower()
-            if url_clean.startswith(prefix_clean):
-                is_trusted = True
-                break
-
-        if not is_trusted:
+    Raises:
+        HTTPException: If verification fails critically
+    """
+    try:
+        agent = get_verification_agent()
+        
+        # Validate input
+        if not extraction_data.candidate_name:
+            logger.warning("No candidate name in extraction data")
             return VerificationResult(
                 is_verified=False,
-                message="URL domain is not in the trusted onlinelist.csv.",
+                message="Cannot verify: No candidate name extracted from certificate.",
                 trusted_domain=False
             )
+        
+        # Perform verification
+        result = await agent.verify(extraction_data)
+        
+        logger.info(
+            f"Verification result for {extraction_data.candidate_name}: "
+            f"verified={result.is_verified}, trusted={result.trusted_domain}"
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Critical error during verification: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Verification service error: {str(e)}"
+        )
 
-        # 5. External Verification Request
+
+async def batch_verify_certificates(
+    extraction_results: list[ExtractionResult]
+) -> list[VerificationResult]:
+    """
+    Verify multiple certificates in batch
+    
+    Args:
+        extraction_results: List of extraction results to verify
+        
+    Returns:
+        List of verification results
+    """
+    results = []
+    
+    for extraction in extraction_results:
         try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            }
-            
-            # Request the constructed or extracted URL
-            response = None
-            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-                logger.info(f"DEBUG: client type: {type(client)}")
-                response = await client.get(url, headers=headers)
-                logger.info(f"DEBUG: response: {response}")
-
-            if response:
-                if response.status_code == 200:
-                    if candidate_name: 
-                        name_parts = [part for part in candidate_name.lower().split() if len(part) > 2]
-                        matches = all(part in response.text.lower() for part in name_parts) if name_parts else False
-                        
-                        if matches:
-                            return VerificationResult(is_verified=True, message="Verified (Name Match).", trusted_domain=True)
-                        else:
-                            # Soft pass: Valid link, valid ID, but name might be formatted differently on page
-                            return VerificationResult(is_verified=True, message="Verified Domain (Name mismatch/OCR error).", trusted_domain=True)
-                    else:
-                        return VerificationResult(is_verified=True, message="Verified Domain (Name unreadable).", trusted_domain=True)
-
-                elif response.status_code == 403:
-                    # Security blocking (Common with LinkedIn/Udemy)
-                    return VerificationResult(is_verified=True, message="Verified (Trusted Source - Access Blocked).", trusted_domain=True)
-                
-                elif response.status_code == 404:
-                     return VerificationResult(is_verified=False, message="Invalid Certificate ID (404 Not Found).", trusted_domain=True)
-
-                else:
-                    return VerificationResult(is_verified=False, message=f"Server Status: {response.status_code}", trusted_domain=True)
-            else:
-                return VerificationResult(is_verified=False, message="Failed to get response (No response object)", trusted_domain=True)
-
+            result = await verify_certificate(extraction)
+            results.append(result)
         except Exception as e:
-            logger.error(f"Verification error: {e}")
-            return VerificationResult(is_verified=False, message=str(e), trusted_domain=True)
+            logger.error(f"Error verifying certificate: {e}")
+            results.append(
+                VerificationResult(
+                    is_verified=False,
+                    message=f"Verification error: {str(e)}",
+                    trusted_domain=False
+                )
+            )
+    
+    return results
+
+
+def reload_trusted_sources():
+    """
+    Reload trusted sources from CSV (useful after CSV updates)
+    """
+    global _verification_agent
+    
+    if _verification_agent:
+        logger.info("Reloading trusted sources...")
+        _verification_agent.org_map, _verification_agent.trusted_domains = (
+            _verification_agent._load_trusted_sources()
+        )
+        logger.info("Trusted sources reloaded successfully")
+    else:
+        logger.warning("Verification agent not initialized yet")
+
+
+def add_trusted_organization(org_name: str, verification_url: str):
+    """
+    Dynamically add a trusted organization
+    
+    Args:
+        org_name: Organization name
+        verification_url: Base verification URL
+    """
+    agent = get_verification_agent()
+    agent.add_organization(org_name, verification_url)
+    logger.info(f"Added trusted organization: {org_name}")

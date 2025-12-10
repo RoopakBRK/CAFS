@@ -5,8 +5,11 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.123.5",
+    "fastapi[standard]>=0.123.5",
+    "mistral>=21.0.0",
+    "mistralai>=1.9.11",
     "numpy>=2.3.5",
+    "ollama>=0.6.1",
     "opencv-python>=4.11.0.86",
     "pdf2image>=1.17.0",
     "pillow>=12.0.0",
