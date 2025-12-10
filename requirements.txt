@@ -10,3 +10,4 @@ qrcode
 ollama
 opencv-python
 numpy
+httpx
