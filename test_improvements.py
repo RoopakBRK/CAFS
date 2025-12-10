@@ -3,8 +3,12 @@ import sys
 import os
 from unittest.mock import MagicMock, patch
 
+import logging
+
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+logging.basicConfig(level=logging.INFO)
 
 from app.agents.extraction import ExtractionAgent
 from app.agents.verification import VerificationAgent
@@ -70,6 +74,10 @@ async def test_extraction_verification():
         future_exit.set_result(None)
         
         mock_client.return_value = mock_client_instance
+        
+        print(f"   DEBUG: mock_client_instance: {mock_client_instance}")
+        print(f"   DEBUG: mock_client_instance.get: {mock_client_instance.get}")
+        print(f"   DEBUG: mock_client_instance.get return value: {mock_client_instance.get.return_value}")
 
         verification_result = await verification_agent.verify(result)
         

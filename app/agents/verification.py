@@ -124,7 +124,9 @@ class VerificationAgent:
             # Request the constructed or extracted URL
             response = None
             async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                logger.info(f"DEBUG: client type: {type(client)}")
                 response = await client.get(url, headers=headers)
+                logger.info(f"DEBUG: response: {response}")
 
             if response:
                 if response.status_code == 200:
