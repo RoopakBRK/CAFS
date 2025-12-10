@@ -17,6 +17,7 @@ class ExtractionResult(BaseModel):
     candidate_name: Optional[str] = None
     certificate_id: Optional[str] = None
     issuer_url: Optional[str] = None
+    issuer_org: Optional[str] = None
     raw_text_snippet: Optional[str] = None 
 
 class VerificationResult(BaseModel):

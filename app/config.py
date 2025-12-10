@@ -15,6 +15,12 @@ class Config:
     
     # Ollama Configuration
     OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+
+    # File Paths
+    CSV_PATH: str = os.getenv("CSV_PATH", "onlinelist.csv")
+
+    # Logging Configuration
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     
     @classmethod
     def get_llm_config(cls) -> dict:

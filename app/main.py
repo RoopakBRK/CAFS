@@ -1,7 +1,12 @@
 import io
+import logging
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pdf2image import convert_from_bytes
+from app.config import config
+
+logger = logging.getLogger(__name__)
+logger.setLevel(config.LOG_LEVEL)
 
 # Import Schemas
 from app.schemas import (
@@ -65,14 +70,12 @@ async def verify_certificate(file: UploadFile = File(...)):
         forensics_data = await run_in_threadpool(forensics_agent.analyze, image_bytes)
         
         # --- STAGE 2: EXTRACTION (OCR) ---
-        extraction_data_dict = await run_in_threadpool(extraction_agent.extract, image_bytes)
-        # Convert dict to Pydantic Model
-        extraction_result = ExtractionResult(**extraction_data_dict)
+        # Extraction is CPU-bound (OCR), so we run it in a threadpool
+        extraction_result = await run_in_threadpool(extraction_agent.extract, image_bytes)
 
         # --- STAGE 3: VERIFICATION (URL Check) ---
-        verification_data_dict = await run_in_threadpool(verification_agent.verify, extraction_data_dict)
-        # Convert dict to Pydantic Model
-        verification_result = VerificationResult(**verification_data_dict)
+        # Verification is I/O-bound (HTTP requests), so we await it directly (it's now async)
+        verification_result = await verification_agent.verify(extraction_result)
 
         # --- STAGE 4: FINAL VERDICT LOGIC ---
         final_verdict = "UNVERIFIED"
