@@ -9,3 +9,6 @@ certificate_verifier/
 │       ├── forensics.py     # Agent 1: Manipulation check
 │       ├── extraction.py    # Agent 2: OCR & Regex
 │       └── verification.py  # Agent 3: URL & Domain Validation
+
+
+uvicorn app.main:app --reload

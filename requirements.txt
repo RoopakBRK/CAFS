@@ -11,6 +11,7 @@ ollama
 opencv-python
 numpy
 mistral
+mistralai
 beautifulsoup4 
 rapidfuzz 
 playwright

@@ -6,12 +6,6 @@ class ForensicsResult(BaseModel):
     is_high_risk: bool
     status: str
     details: Optional[List[str]] = []
-    # LLM Analysis Fields
-    llm_analysis: Optional[str] = None
-    llm_risk_score: Optional[float] = None
-    llm_confidence: Optional[float] = None
-    llm_reasoning: Optional[str] = None
-    # REMOVED: metadata field
 
 from enum import Enum
 from difflib import SequenceMatcher
@@ -107,9 +101,7 @@ class ExtractionResult(BaseModel):
             return value
         return fuzzy_match_issuer(str(value))
     issuer_url: Optional[str] = None
-    issuer_org: Optional[str] = None
     raw_text_snippet: Optional[str] = None 
-    certificate_date: Optional[str] = None 
 
 class VerificationResult(BaseModel):
     is_verified: bool
